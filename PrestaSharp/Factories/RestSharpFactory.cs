@@ -5,10 +5,10 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using Bukimedia.PrestaSharp.Deserializers;
 using Bukimedia.PrestaSharp.Entities;
 using Bukimedia.PrestaSharp.Serializers;
 using RestSharp;
+using RestSharp.Serializers.Json;
 
 namespace Bukimedia.PrestaSharp.Factories
 {
@@ -27,7 +27,7 @@ namespace Bukimedia.PrestaSharp.Factories
 
         #region Privates
 
-        private void AddWsKey(RestRequest request)
+        protected virtual void AddWsKey(RestRequest request)
         {
             request.AddParameter("ws_key", Account, ParameterType.QueryString); // used on every request
         }
@@ -35,10 +35,10 @@ namespace Bukimedia.PrestaSharp.Factories
         private void AddBody(RestRequest request, IEnumerable<PrestaShopEntity> entities)
         {
             request.RequestFormat = DataFormat.Xml;
-            request.XmlSerializer = new PrestaSharpSerializer();
             var serialized = string.Empty;
+            var prestaSharpSerializer = new PrestaSharpSerializer();
             foreach (var entity in entities)
-                serialized += ((PrestaSharpSerializer) request.XmlSerializer).PrestaSharpSerialize(entity);
+                serialized += prestaSharpSerializer.PrestaSharpSerialize(entity);
             serialized = "<prestashop>\n" + serialized + "\n</prestashop>";
             request.AddParameter("application/xml", serialized, ParameterType.RequestBody);
         }
@@ -48,18 +48,11 @@ namespace Bukimedia.PrestaSharp.Factories
             AddBody(request, new List<PrestaShopEntity> {entity});
         }
 
-        private void AddHandlers(RestClient client)
-        {
-            client.ClearHandlers();
-            client.AddHandler("text/xml", () => new PrestaSharpDeserializer());
-            client.AddHandler("text/html", () => new PrestaSharpTextErrorDeserializer());
-        }
-
         #endregion
 
         #region Protected
 
-        protected void CheckResponse(IRestResponse response, RestRequest request)
+        protected void CheckResponse(RestResponse response, RestRequest request)
         {
             if (response.StatusCode == HttpStatusCode.InternalServerError
                 || response.StatusCode == HttpStatusCode.ServiceUnavailable
@@ -81,14 +74,22 @@ namespace Bukimedia.PrestaSharp.Factories
 
         #endregion
 
+        protected virtual RestClient CreateRestClient()
+        {
+            var client = new RestClient(
+                new RestClientOptions(BaseUrl),
+                configureSerialization: config => {
+                    config.UseSerializer<XmlRestSerializer>().UseSerializer<TextErrorSerializer>();
+                }
+            );
+
+            return client;
+        }
+
         protected T Execute<T>(RestRequest request) where T : new()
         {
-            var client = new RestClient
-            {
-                BaseUrl = new Uri(BaseUrl)
-            };
+            var client = CreateRestClient();
             AddWsKey(request);
-            AddHandlers(client);
             var response = client.Execute<T>(request);
             CheckResponse(response, request);
             return response.Data;
@@ -96,12 +97,8 @@ namespace Bukimedia.PrestaSharp.Factories
 
         protected T ExecuteForFilter<T>(RestRequest request) where T : new()
         {
-            var client = new RestClient
-            {
-                BaseUrl = new Uri(BaseUrl)
-            };
+            var client = CreateRestClient();
             AddWsKey(request);
-            AddHandlers(client);
             var response = client.Execute<T>(request);
             CheckResponse(response, request);
             return response.Data;
@@ -109,10 +106,7 @@ namespace Bukimedia.PrestaSharp.Factories
 
         protected List<long> ExecuteForGetIds<T>(RestRequest request, string rootElement) where T : new()
         {
-            var client = new RestClient
-            {
-                BaseUrl = new Uri(BaseUrl)
-            };
+            var client = CreateRestClient();
             AddWsKey(request);
             var response = client.Execute<T>(request);
             var xDcoument = XDocument.Parse(response.Content);
@@ -123,8 +117,7 @@ namespace Bukimedia.PrestaSharp.Factories
 
         protected byte[] ExecuteForImage(RestRequest request)
         {
-            var client = new RestClient();
-            client.BaseUrl = new Uri(BaseUrl);
+            var client = CreateRestClient();
             AddWsKey(request);
             var response = client.Execute(request);
             CheckResponse(response, request);
@@ -133,19 +126,18 @@ namespace Bukimedia.PrestaSharp.Factories
 
         protected async Task<T> ExecuteAsync<T>(RestRequest request) where T : new()
         {
-            var client = new RestClient(BaseUrl);
+            var client = CreateRestClient();
             AddWsKey(request);
-            AddHandlers(client);
-            var response = await client.ExecuteTaskAsync<T>(request);
+            var response = await client.ExecuteAsync<T>(request);
             CheckResponse(response, request);
             return response.Data;
         }
 
         protected async Task<List<long>> ExecuteForGetIdsAsync<T>(RestRequest request, string rootElement) where T : new()
         {
-            var client = new RestClient(BaseUrl);
+            var client = CreateRestClient();
             AddWsKey(request);
-            var response = await client.ExecuteTaskAsync<T>(request);
+            var response = await client.ExecuteAsync<T>(request);
             CheckResponse(response, request);
             var xDcoument = XDocument.Parse(response.Content);
             var ids = xDcoument.Descendants(rootElement).Select(doc => long.Parse(doc.Attribute("id").Value)).ToList();
@@ -153,9 +145,9 @@ namespace Bukimedia.PrestaSharp.Factories
         }
         protected async Task<byte[]> ExecuteForImageAsync(RestRequest request)
         {
-            var client = new RestClient(BaseUrl);
+            var client = CreateRestClient();
             AddWsKey(request);
-            var response = await client.ExecuteTaskAsync(request);
+            var response = await client.ExecuteAsync(request);
             CheckResponse(response, request);
             return response.RawBytes;
         }
@@ -185,7 +177,7 @@ namespace Bukimedia.PrestaSharp.Factories
             var request = new RestRequest
             {
                 Resource = resource,
-                Method = Method.POST
+                Method = Method.Post,
             };
             AddBody(request, entities);
             return request;
@@ -205,7 +197,7 @@ namespace Bukimedia.PrestaSharp.Factories
             var request = new RestRequest
             {
                 Resource = "/images/" + resource + "/" + id,
-                Method = Method.POST,
+                Method = Method.Post,
                 RequestFormat = DataFormat.Xml
             };
             request.AddFile("image", imagePath);
@@ -226,7 +218,7 @@ namespace Bukimedia.PrestaSharp.Factories
             var request = new RestRequest
             {
                 Resource = "/images/" + resource + "/" + id,
-                Method = Method.POST,
+                Method = Method.Post,
                 RequestFormat = DataFormat.Xml
             };
             request.AddFile("image", image, string.IsNullOrWhiteSpace(imageFileName) ? "dummy.png" : imageFileName);
@@ -245,7 +237,7 @@ namespace Bukimedia.PrestaSharp.Factories
             var request = new RestRequest
             {
                 Resource = "/images/" + resource + "/" + id,
-                Method = Method.PUT,
+                Method = Method.Put,
                 RequestFormat = DataFormat.Xml
             };
 
@@ -263,7 +255,7 @@ namespace Bukimedia.PrestaSharp.Factories
             {
                 RootElement = "prestashop",
                 Resource = resource,
-                Method = Method.PUT
+                Method = Method.Put
             };
             request.AddParameter("id", id, ParameterType.UrlSegment);
             AddBody(request, prestashopEntity);
@@ -275,7 +267,7 @@ namespace Bukimedia.PrestaSharp.Factories
             var request = new RestRequest
             {
                 Resource = resource,
-                Method = Method.PUT
+                Method = Method.Put
             };
             AddBody(request, entities);
             return request;
@@ -288,7 +280,7 @@ namespace Bukimedia.PrestaSharp.Factories
             {
                 RootElement = "prestashop",
                 Resource = "/images/" + resource + "/" + resourceId,
-                Method = Method.DELETE,
+                Method = Method.Delete,
                 RequestFormat = DataFormat.Xml
             };
             if (imageId != null) request.Resource += "/" + imageId;
@@ -302,7 +294,7 @@ namespace Bukimedia.PrestaSharp.Factories
             {
                 RootElement = "prestashop",
                 Resource = resource + "/" + id,
-                Method = Method.DELETE,
+                Method = Method.Delete,
                 RequestFormat = DataFormat.Xml
             };
             return request;
@@ -342,7 +334,7 @@ namespace Bukimedia.PrestaSharp.Factories
             var request = new RestRequest
             {
                 Resource = resource,
-                Method = Method.POST
+                Method = Method.Post
             };
             AddBody(request, entities);
             request.AddParameter("sendemail", 1);
@@ -359,8 +351,7 @@ namespace Bukimedia.PrestaSharp.Factories
         }
         protected T ExecuteForAttachment<T>(RestRequest Request) where T : new()
         {
-            var client = new RestClient();
-            client.BaseUrl = new Uri(this.BaseUrl);
+            var client = CreateRestClient();
             //client.Authenticator = new HttpBasicAuthenticator(this.Account, this.Password);
             Request.AddParameter("ws_key", this.Account, ParameterType.QueryString);
             // Aggiunto meccanismo di "bypass" del controllo sulla validità del certificato SSL
@@ -392,7 +383,7 @@ namespace Bukimedia.PrestaSharp.Factories
         {
             var request = new RestRequest();
             request.Resource = "/attachments/file/";
-            request.Method = Method.POST;
+            request.Method = Method.Post;
             request.RequestFormat = DataFormat.Xml;
             string fileName = System.IO.Path.GetFileName(filePath);
             request.AddParameter("name", fileName);
@@ -404,7 +395,7 @@ namespace Bukimedia.PrestaSharp.Factories
         {
             var request = new RestRequest();
             request.Resource = "/attachments/file/" + id;
-            request.Method = Method.PUT;
+            request.Method = Method.Put;
             request.RequestFormat = DataFormat.Xml;
             string fileName = System.IO.Path.GetFileName(filePath);
             request.AddParameter("name", fileName);

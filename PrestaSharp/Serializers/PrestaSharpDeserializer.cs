@@ -1,6 +1,6 @@
 ﻿using RestSharp;
 using RestSharp.Extensions;
-using RestSharp.Serialization.Xml;
+using RestSharp.Serializers.Xml;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -11,7 +11,7 @@ using System.Reflection;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace Bukimedia.PrestaSharp.Deserializers
+namespace Bukimedia.PrestaSharp.Serializers
 {
     public class PrestaSharpDeserializer : IXmlDeserializer
     {
@@ -26,10 +26,10 @@ namespace Bukimedia.PrestaSharp.Deserializers
             Culture = CultureInfo.InvariantCulture;
         }
 
-        public virtual T Deserialize<T>(IRestResponse response)
+        public virtual T Deserialize<T>(RestResponse response)
         {
             if (string.IsNullOrEmpty(response.Content))
-                return default(T);
+                return default;
 
             XDocument doc = XDocument.Parse(response.Content.Trim());
             XElement root;
@@ -124,7 +124,7 @@ namespace Bukimedia.PrestaSharp.Deserializers
                 if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
                 {
                     // if the value is empty, set the property to null...
-                    if (value == null || String.IsNullOrEmpty(value.ToString()))
+                    if (value == null || string.IsNullOrEmpty(value.ToString()))
                     {
                         prop.SetValue(x, null, null);
                         continue;
@@ -139,9 +139,9 @@ namespace Bukimedia.PrestaSharp.Deserializers
                 }
                 else if (type.IsPrimitive)
                 {
-                    if (!String.IsNullOrEmpty(value.ToString()))
+                    if (!string.IsNullOrEmpty(value.ToString()))
                     {
-                        prop.SetValue(x, System.Convert.ChangeType(value, type, Culture), null);
+                        prop.SetValue(x, Convert.ChangeType(value, type, Culture), null);
                     }
                 }
                 else if (type.IsEnum)
@@ -198,7 +198,7 @@ namespace Bukimedia.PrestaSharp.Deserializers
                         }
                     }
                 }
-                else if (type == typeof(Decimal))
+                else if (type == typeof(decimal))
                 {
                     //Hack for non defined price
                     if (value.Equals(""))
@@ -207,7 +207,7 @@ namespace Bukimedia.PrestaSharp.Deserializers
                     }
                     else
                     {
-                        value = Decimal.Parse(value.ToString(), Culture);
+                        value = decimal.Parse(value.ToString(), Culture);
                         prop.SetValue(x, value, null);
                     }
                 }
@@ -276,7 +276,7 @@ namespace Bukimedia.PrestaSharp.Deserializers
             var converter = TypeDescriptor.GetConverter(type);
             if (converter.CanConvertFrom(typeof(string)))
             {
-                result = (converter.ConvertFromInvariantString(inputString));
+                result = converter.ConvertFromInvariantString(inputString);
                 return true;
             }
             result = null;
@@ -365,13 +365,13 @@ namespace Bukimedia.PrestaSharp.Deserializers
         protected virtual object CreateAndMap(Type t, XElement element)
         {
             object item;
-            if (t == typeof(String))
+            if (t == typeof(string))
             {
                 item = element.Value;
             }
             else if (t.IsPrimitive)
             {
-                item = System.Convert.ChangeType(element.Value, t, Culture);
+                item = Convert.ChangeType(element.Value, t, Culture);
             }
             else
             {

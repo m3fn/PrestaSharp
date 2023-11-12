@@ -1,12 +1,13 @@
 using RestSharp;
-using RestSharp.Serialization.Xml;
 using System;
 
-namespace Bukimedia.PrestaSharp.Deserializers
+using RestSharp.Serializers.Xml;
+
+namespace Bukimedia.PrestaSharp.Serializers
 {
     public class PrestaSharpTextErrorDeserializer : IXmlDeserializer
     {
-        public T Deserialize<T>(IRestResponse response)
+        public T Deserialize<T>(RestResponse response)
         {
             throw new Exception("Prestashop failed to serve XML response instead got text: " + response.Content);
         }

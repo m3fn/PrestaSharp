@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Xml.Linq;
+using Bukimedia.PrestaSharp.Serializers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Bukimedia.PrestaSharp.Deserializers.Tests

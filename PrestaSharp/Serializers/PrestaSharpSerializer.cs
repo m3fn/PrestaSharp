@@ -4,6 +4,7 @@ using System.Linq;
 using System.Xml.Linq;
 using RestSharp.Extensions;
 using RestSharp.Serializers;
+using RestSharp.Serializers.Xml;
 
 namespace Bukimedia.PrestaSharp.Serializers
 {

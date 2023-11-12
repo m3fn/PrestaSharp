@@ -1,6 +1,5 @@
 using RestSharp.Serializers;
 using System.Xml.Serialization;
-using RestSharp.Serializers;
 
 namespace Bukimedia.PrestaSharp.Entities
 {
