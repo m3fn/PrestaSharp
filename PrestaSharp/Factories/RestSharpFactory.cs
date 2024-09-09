@@ -8,12 +8,13 @@ using System.Xml.Linq;
 using Bukimedia.PrestaSharp.Entities;
 using Bukimedia.PrestaSharp.Serializers;
 using RestSharp;
-using RestSharp.Serializers.Json;
 
 namespace Bukimedia.PrestaSharp.Factories
 {
     public abstract class RestSharpFactory
     {
+        private readonly PrestaSharpSerializer _prestaSharpSerializer;
+
         protected string BaseUrl { get; set; }
         protected string Account { get; set; }
         protected string Password { get; set; }
@@ -23,6 +24,8 @@ namespace Bukimedia.PrestaSharp.Factories
             BaseUrl = baseUrl;
             Account = account;
             Password = password;
+
+            _prestaSharpSerializer = new PrestaSharpSerializer();
         }
 
         #region Privates
@@ -36,9 +39,18 @@ namespace Bukimedia.PrestaSharp.Factories
         {
             request.RequestFormat = DataFormat.Xml;
             var serialized = string.Empty;
-            var prestaSharpSerializer = new PrestaSharpSerializer();
             foreach (var entity in entities)
-                serialized += prestaSharpSerializer.PrestaSharpSerialize(entity);
+                serialized += _prestaSharpSerializer.PrestaSharpSerialize(entity);
+            serialized = "<prestashop>\n" + serialized + "\n</prestashop>";
+            request.AddParameter("application/xml", serialized, ParameterType.RequestBody);
+        }
+
+        protected void AddBody(RestRequest request,(string, string)[] entities)
+        {
+            request.RequestFormat = DataFormat.Xml;
+            var serialized = string.Empty;
+            foreach ((string, string) entity in entities)
+                serialized += "<" + entity.Item1 + ">" + entity.Item2 + "</" + entity.Item1 + ">";
             serialized = "<prestashop>\n" + serialized + "\n</prestashop>";
             request.AddParameter("application/xml", serialized, ParameterType.RequestBody);
         }
